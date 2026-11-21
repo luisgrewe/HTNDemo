@@ -49,6 +49,7 @@ public enum TASKS
     Avoid,
     Hide,
     GetItem,
+    ChasePlayer,
     Idle
 }
 

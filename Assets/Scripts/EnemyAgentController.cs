@@ -239,6 +239,15 @@ public class EnemyAgentController : MonoBehaviour {
         agent.destination = GetBestHidingSpot().transform.position;
     }
 
+    public void ChasePlayer()
+    {
+        GameObject player = FindAgent();
+        if (player != null)
+        {
+            agent.destination = player.transform.position;
+        }
+    }
+
     public void Idle()
     {
         agent.destination = transform.position;
