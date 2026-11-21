@@ -41,6 +41,7 @@ public class EnemyAgentController : MonoBehaviour {
     void UpdateWorldState()
     {
         planner.CurrentWorldState.setNumTeleports(numTeleportTraps);
+        float teleDistanceSquared = teleDistance * teleDistance;
 
         float playerDist = -1;  // Default -1 in case Player is removed from game.
 
@@ -53,19 +54,19 @@ public class EnemyAgentController : MonoBehaviour {
         }
 
         // Get Enemy and Player distances 
-        if (playerDist < teleDistance && playerDist != -1)
+        if (playerDist < teleDistanceSquared && playerDist != -1)
         {
             planner.CurrentWorldState.setPlayerNear(true);
         }
-        else if (playerDist >= teleDistance || playerDist == -1)
+        else if (playerDist >= teleDistanceSquared || playerDist == -1)
         {
             planner.CurrentWorldState.setPlayerNear(false);
         }
-        if (enemyDist < teleDistance)
+        if (enemyDist < teleDistanceSquared)
         {
             planner.CurrentWorldState.setEnemyNear(true);
         }
-        else if (enemyDist >= teleDistance)
+        else if (enemyDist >= teleDistanceSquared)
         {
             planner.CurrentWorldState.setEnemyNear(false);
         }
