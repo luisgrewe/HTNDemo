@@ -16,6 +16,7 @@ public class EnemyAgentController : MonoBehaviour {
     public GameObject[] hidingSpots;
     public NavMeshAgent agent;
     public EnemyAgentPlanner planner;
+    private bool matchEnded;
     
 	// Use this for initialization
 	void Start () {
@@ -34,8 +35,35 @@ public class EnemyAgentController : MonoBehaviour {
 
     private void Update()
     {
+        if (matchEnded)
+        {
+            return;
+        }
+
         UpdateWorldState();
         planner.MakePlan();
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        CatchPlayer(collision.gameObject);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        CatchPlayer(other.gameObject);
+    }
+
+    private void CatchPlayer(GameObject other)
+    {
+        if (matchEnded || !other.CompareTag("Player"))
+        {
+            return;
+        }
+
+        matchEnded = true;
+        agent.isStopped = true;
+        gameMgr.GameOver("The Enemy Agent caught the Player.");
     }
 
     void UpdateWorldState()
@@ -72,9 +100,12 @@ public class EnemyAgentController : MonoBehaviour {
         }
 
         // Get position to see if in hiding spot. Do not include y because then the agent would have to be intersecting the floor
-        if(transform.position.x == GetBestHidingSpot().transform.position.x && transform.position.z == GetBestHidingSpot().transform.position.z)
+        GameObject bestHidingSpot = GetBestHidingSpot();
+        if (bestHidingSpot != null)
         {
-            planner.CurrentWorldState.isHidden = true;
+            Vector2 agentPosition = new Vector2(transform.position.x, transform.position.z);
+            Vector2 hidingPosition = new Vector2(bestHidingSpot.transform.position.x, bestHidingSpot.transform.position.z);
+            planner.CurrentWorldState.isHidden = Vector2.Distance(agentPosition, hidingPosition) < 1.5f;
         }
         else
         {
