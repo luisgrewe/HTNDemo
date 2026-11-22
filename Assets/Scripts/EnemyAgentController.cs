@@ -79,7 +79,18 @@ public class EnemyAgentController : MonoBehaviour {
 
     private void CatchPlayer(GameObject other)
     {
-        if (matchEnded || !other.CompareTag("Player"))
+        if (matchEnded)
+        {
+            return;
+        }
+
+        if (other.CompareTag("Enemy"))
+        {
+            Caught();
+            return;
+        }
+
+        if (!other.CompareTag("Player"))
         {
             return;
         }
