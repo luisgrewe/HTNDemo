@@ -53,7 +53,6 @@ public class EnemyAgentController : MonoBehaviour {
                 hidingFromEnemy = true;
                 hidingDestination = GetBestHidingSpot();
                 hidingReachedTime = -1f;
-                hidingReachedTime = -1f;
                 planner.CurrentWorldState.setIsHidden(false);
                 gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
             }
@@ -203,11 +202,25 @@ public class EnemyAgentController : MonoBehaviour {
             agent.destination = hidingDestination.transform.position;
             if (Time.time - hidingReachedTime >= 2f)
             {
-                hidingFromEnemy = false;
-                hidingDestination = null;
-                hidingReachedTime = -1f;
-                planner.CurrentWorldState.setEnemyNear(false);
-                planner.CurrentWorldState.setIsHidden(true);
+                GameObject enemy = FindClosestEnemy();
+                bool enemyStillNear = enemy != null &&
+                    (transform.position - enemy.transform.position).sqrMagnitude <
+                    enemyAvoidDistance * enemyAvoidDistance;
+
+                if (enemyStillNear)
+                {
+                    hidingDestination = GetBestHidingSpot();
+                    hidingReachedTime = -1f;
+                    planner.CurrentWorldState.setEnemyNear(true);
+                }
+                else
+                {
+                    hidingFromEnemy = false;
+                    hidingDestination = null;
+                    hidingReachedTime = -1f;
+                    planner.CurrentWorldState.setEnemyNear(false);
+                    planner.CurrentWorldState.setIsHidden(true);
+                }
             }
         }
         else
