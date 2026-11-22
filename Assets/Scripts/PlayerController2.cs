@@ -117,9 +117,8 @@ public class PlayerController2 : MonoBehaviour {
 
     public void Caught()
     {
-        this.gameObject.SetActive(false);
-        isAlive = false;
-        gameMgr.notifyCaught("You were seen by the enemy!\nWait for the game to end.");
+        Respawn();
+        gameMgr.OverlayText("You were seen by the enemy and respawned!", 3);
     }
 
     public void Respawn()
