@@ -10,7 +10,7 @@ public class EnemyAgentController : MonoBehaviour {
     public bool isAlive = true;
     public int numTeleportTraps = 2;
     public float teleDistance = 20;
-    public float enemyAvoidDistance = 25;
+    public float enemyAvoidDistance = 12;
     public bool isHiding = true;
 
     public GameObject[] itemsRemaining;
@@ -202,24 +202,15 @@ public class EnemyAgentController : MonoBehaviour {
             agent.destination = hidingDestination.transform.position;
             if (Time.time - hidingReachedTime >= 2f)
             {
-                GameObject enemy = FindClosestEnemy();
-                bool enemyStillNear = enemy != null &&
-                    (transform.position - enemy.transform.position).sqrMagnitude <
-                    enemyAvoidDistance * enemyAvoidDistance;
+                hidingFromEnemy = false;
+                hidingDestination = null;
+                hidingReachedTime = -1f;
+                planner.CurrentWorldState.setEnemyNear(false);
+                planner.CurrentWorldState.setIsHidden(true);
 
-                if (enemyStillNear)
+                if (planner.CurrentWorldState.playerNear)
                 {
-                    hidingDestination = GetBestHidingSpot();
-                    hidingReachedTime = -1f;
-                    planner.CurrentWorldState.setEnemyNear(true);
-                }
-                else
-                {
-                    hidingFromEnemy = false;
-                    hidingDestination = null;
-                    hidingReachedTime = -1f;
-                    planner.CurrentWorldState.setEnemyNear(false);
-                    planner.CurrentWorldState.setIsHidden(true);
+                    ChasePlayer();
                 }
             }
         }
