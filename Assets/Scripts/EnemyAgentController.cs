@@ -131,15 +131,46 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        GoToBestHidingSpot();
-        planner.CurrentWorldState.setIsHidden(false);
-        gameMgr.OverlayText("The enemy agent hid from a patrolling enemy!", 3);
+        RespawnFarFromPlayer();
+        gameMgr.OverlayText("The enemy agent was spotted and respawned!", 3);
     }
 
     public void Respawn()
     {
         agent.Warp(gameMgr.spawner.GetComponent<SpawnController>().agentSpawnPoints[Random.Range(0, 10)].transform.position
             + new Vector3(0, 0.5f, 0));
+    }
+
+    public void RespawnFarFromPlayer()
+    {
+        GameObject player = FindAgent();
+        GameObject[] spawnPoints = gameMgr.spawner.GetComponent<SpawnController>().agentSpawnPoints;
+        if (spawnPoints == null || spawnPoints.Length == 0)
+        {
+            return;
+        }
+
+        GameObject farthestPoint = spawnPoints[0];
+        float greatestPlayerDistance = -1f;
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            if (spawnPoints[i] == null)
+            {
+                continue;
+            }
+
+            float playerDistance = player == null
+                ? 0f
+                : (spawnPoints[i].transform.position - player.transform.position).sqrMagnitude;
+            if (playerDistance > greatestPlayerDistance)
+            {
+                greatestPlayerDistance = playerDistance;
+                farthestPoint = spawnPoints[i];
+            }
+        }
+
+        agent.Warp(farthestPoint.transform.position + new Vector3(0, 0.5f, 0));
+        agent.ResetPath();
     }
 
     public void ActivateTeleportTrap()
