@@ -140,7 +140,7 @@ MonoBehaviour:
   gameMgr: {fileID: 0}
   isAlive: 1
   numTeleportTraps: 0
-  teleDistance: 150
+  teleDistance: 20
   isHiding: 1
   itemsRemaining: []
   hidingSpots: []

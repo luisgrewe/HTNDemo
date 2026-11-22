@@ -9,7 +9,7 @@ public class EnemyAgentController : MonoBehaviour {
     private int numItems = 0;
     public bool isAlive = true;
     public int numTeleportTraps = 2;
-    public float teleDistance = 150;
+    public float teleDistance = 20;
     public bool isHiding = true;
 
     public GameObject[] itemsRemaining;
@@ -95,9 +95,8 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        this.gameObject.SetActive(false);
-        isAlive = false;
-        gameMgr.notifyCaught("The enemy agent has been caught!");
+        Respawn();
+        gameMgr.OverlayText("The enemy agent was caught and respawned!", 3);
     }
 
     public void Respawn()
