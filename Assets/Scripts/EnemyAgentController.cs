@@ -20,6 +20,8 @@ public class EnemyAgentController : MonoBehaviour {
     private bool matchEnded;
     private bool hidingFromEnemy;
     private GameObject hidingDestination;
+    private float hidingReachedTime = -1f;
+    private float hidingCooldownUntil = -1f;
     
 	// Use this for initialization
 	void Start () {
@@ -45,12 +47,18 @@ public class EnemyAgentController : MonoBehaviour {
 
         UpdateWorldState();
 
-        if (planner.CurrentWorldState.enemyNear)
+        if (Time.time < hidingCooldownUntil)
+        {
+            planner.CurrentWorldState.setEnemyNear(false);
+        }
+        else if (planner.CurrentWorldState.enemyNear)
         {
             if (!hidingFromEnemy)
             {
                 hidingFromEnemy = true;
                 hidingDestination = GetBestHidingSpot();
+                hidingReachedTime = -1f;
+                hidingReachedTime = -1f;
                 planner.CurrentWorldState.setIsHidden(false);
                 gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
             }
@@ -176,24 +184,30 @@ public class EnemyAgentController : MonoBehaviour {
         agent.destination = hidingDestination.transform.position;
 
         float distanceToHidingSpot = (transform.position - hidingDestination.transform.position).sqrMagnitude;
-        GameObject enemy = FindClosestEnemy();
-        float enemyDistance = enemy == null
-            ? Mathf.Infinity
-            : (transform.position - enemy.transform.position).sqrMagnitude;
-
         bool reachedHidingSpot = distanceToHidingSpot < 1.5f * 1.5f;
-        bool enemyIsOutOfRange = enemyDistance >= enemyAvoidDistance * enemyAvoidDistance;
 
         if (reachedHidingSpot)
         {
             planner.CurrentWorldState.setIsHidden(true);
-        }
+            if (hidingReachedTime < 0f)
+            {
+                hidingReachedTime = Time.time;
+            }
 
-        if (reachedHidingSpot && enemyIsOutOfRange)
+            agent.destination = hidingDestination.transform.position;
+            if (Time.time - hidingReachedTime >= 2f)
+            {
+                hidingFromEnemy = false;
+                hidingDestination = null;
+                hidingReachedTime = -1f;
+                hidingCooldownUntil = Time.time + 4f;
+                planner.CurrentWorldState.setEnemyNear(false);
+                planner.CurrentWorldState.setIsHidden(true);
+            }
+        }
+        else
         {
-            hidingFromEnemy = false;
-            hidingDestination = null;
-            planner.CurrentWorldState.setEnemyNear(false);
+            hidingReachedTime = -1f;
         }
     }
 
