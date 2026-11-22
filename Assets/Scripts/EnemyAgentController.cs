@@ -10,21 +10,35 @@ public class EnemyAgentController : MonoBehaviour {
     public bool isAlive = true;
     public int numTeleportTraps = 2;
     public float teleDistance = 20;
-    public float enemyAvoidDistance = 12;
     public bool isHiding = true;
+
+    // How far ahead (in seconds) the agent predicts the yellow vision boxes when planning a move.
+    public float chaseLookaheadTime = 2.5f;
+    public float hideLookaheadTime = 2.5f;
+    // Extra clearance in front of / behind a vision box along its travel direction.
+    public float visionForwardMargin = 1.5f;
+    // Extra clearance beside a vision box. Must stay small enough that the alcoves count as safe.
+    public float visionSideMargin = 0.5f;
+    // Added to the forward margin while already avoiding, so the agent doesn't flicker between chase and hide.
+    public float avoidHysteresis = 1f;
 
     public GameObject[] itemsRemaining;
     public GameObject[] hidingSpots;
     public NavMeshAgent agent;
     public EnemyAgentPlanner planner;
     private bool matchEnded;
-    private bool hidingFromEnemy;
+    private bool avoidingEnemy;
     private GameObject hidingDestination;
-    private float hidingReachedTime = -1f;
+    private NavMeshPath scratchPath;
+    private readonly List<Transform> visionBoxes = new List<Transform>();
+    private readonly List<Vector3> visionVelocities = new List<Vector3>();
+    private readonly List<float> visionOffUntil = new List<float>();
+    private Collider[] obstacleColliders;
     
 	// Use this for initialization
 	void Start () {
         agent = GetComponent<NavMeshAgent>();
+        scratchPath = new NavMeshPath();
         itemsRemaining = gameMgr.items;
         hidingSpots = new GameObject[12];
         for(int i = 0; i < gameMgr.alcoves.Length; i++) // add all the alcoves to the hidingSpots
@@ -35,6 +49,13 @@ public class EnemyAgentController : MonoBehaviour {
         hidingSpots[11] = gameMgr.spawner.rightSpot;
         planner = GetComponent<EnemyAgentPlanner>();
         numTeleportTraps = 2;
+
+        ObstacleController[] obstacles = FindObjectsByType<ObstacleController>(FindObjectsSortMode.None);
+        obstacleColliders = new Collider[obstacles.Length];
+        for (int i = 0; i < obstacles.Length; i++)
+        {
+            obstacleColliders[i] = obstacles[i].GetComponent<Collider>();
+        }
     }
 
     private void Update()
@@ -46,23 +67,12 @@ public class EnemyAgentController : MonoBehaviour {
 
         UpdateWorldState();
 
-        if (planner.CurrentWorldState.enemyNear)
+        avoidingEnemy = planner.CurrentWorldState.enemyNear;
+        if (!avoidingEnemy)
         {
-            if (!hidingFromEnemy)
-            {
-                hidingFromEnemy = true;
-                hidingDestination = GetBestHidingSpot();
-                hidingReachedTime = -1f;
-                planner.CurrentWorldState.setIsHidden(false);
-                gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
-            }
+            hidingDestination = null;
         }
 
-        if (hidingFromEnemy)
-        {
-            HideFromPatrollingEnemy();
-            return;
-        }
         planner.MakePlan();
     }
 
@@ -106,50 +116,177 @@ public class EnemyAgentController : MonoBehaviour {
 
     void UpdateWorldState()
     {
-        planner.CurrentWorldState.setNumTeleports(numTeleportTraps);
-        float teleDistanceSquared = teleDistance * teleDistance;
-        float enemyAvoidDistanceSquared = enemyAvoidDistance * enemyAvoidDistance;
+        WorldState ws = planner.CurrentWorldState;
+        ws.setNumTeleports(numTeleportTraps);
+        RefreshVisionBoxes();
 
-        float playerDist = -1;  // Default -1 in case Player is removed from game.
+        GameObject player = FindAgent();
+        ws.setPlayerAlive(player != null);
+        ws.setPlayerNear(player != null &&
+            (player.transform.position - transform.position).sqrMagnitude < teleDistance * teleDistance);
 
-        Vector3 diff = FindClosestEnemy().transform.position - transform.position;
-        float enemyDist = diff.sqrMagnitude;
-        if (FindAgent() != null)    // in case Player gets removed from game
-        {
-            Vector3 diff2 = FindAgent().transform.position - transform.position;
-            playerDist = diff2.sqrMagnitude;
-        }
+        float forwardMargin = visionForwardMargin + (avoidingEnemy ? avoidHysteresis : 0f);
+        bool safeToStay = IsSafeToStay(transform.position, 0f, hideLookaheadTime, forwardMargin);
 
-        // Get Enemy and Player distances 
-        if (playerDist < teleDistanceSquared && playerDist != -1)
+        // "Enemy near" means the yellow vision box would catch us if we kept chasing right now.
+        bool enemyNear;
+        if (player != null)
         {
-            planner.CurrentWorldState.setPlayerNear(true);
-        }
-        else if (playerDist >= teleDistanceSquared || playerDist == -1)
-        {
-            planner.CurrentWorldState.setPlayerNear(false);
-        }
-        if (enemyDist < enemyAvoidDistanceSquared)
-        {
-            planner.CurrentWorldState.setEnemyNear(true);
-        }
-        else if (enemyDist >= enemyAvoidDistanceSquared)
-        {
-            planner.CurrentWorldState.setEnemyNear(false);
-        }
-
-        // Get position to see if in hiding spot. Do not include y because then the agent would have to be intersecting the floor
-        GameObject bestHidingSpot = GetBestHidingSpot();
-        if (bestHidingSpot != null)
-        {
-            Vector2 agentPosition = new Vector2(transform.position.x, transform.position.z);
-            Vector2 hidingPosition = new Vector2(bestHidingSpot.transform.position.x, bestHidingSpot.transform.position.z);
-            planner.CurrentWorldState.isHidden = Vector2.Distance(agentPosition, hidingPosition) < 1.5f;
+            enemyNear = ExposureAlongPath(transform.position, player.transform.position, chaseLookaheadTime, forwardMargin, false) > 0f;
         }
         else
         {
-            planner.CurrentWorldState.isHidden = false;
+            enemyNear = !safeToStay;
         }
+
+        // Once heading for a hiding spot, keep going until we're in it instead of stopping mid-corridor.
+        bool reachedHidingSpot = hidingDestination == null ||
+            Vector2.Distance(new Vector2(transform.position.x, transform.position.z),
+                new Vector2(hidingDestination.transform.position.x, hidingDestination.transform.position.z)) < 1.5f;
+
+        ws.setEnemyNear(enemyNear);
+        ws.setIsHidden(safeToStay && reachedHidingSpot);
+    }
+
+    void RefreshVisionBoxes()
+    {
+        visionBoxes.Clear();
+        visionVelocities.Clear();
+        visionOffUntil.Clear();
+        foreach (GameObject enemyObj in GameObject.FindGameObjectsWithTag("Enemy"))
+        {
+            EnemyController enemy = enemyObj.GetComponent<EnemyController>();
+            if (enemy == null || enemy.transform.childCount == 0)
+            {
+                continue;
+            }
+
+            Transform box = enemy.transform.GetChild(0);
+            Vector3 velocity = enemy.transform.right * enemy.forwardSpeed;
+            visionBoxes.Add(box);
+            visionVelocities.Add(velocity);
+            visionOffUntil.Add(box.gameObject.activeSelf ? 0f : VisionOffTimeRemaining(enemy, velocity));
+        }
+    }
+
+    // While an enemy passes through an obstacle its vision is switched off. Returns how many seconds are left
+    // until its body leaves the obstacle and the vision comes back.
+    float VisionOffTimeRemaining(EnemyController enemy, Vector3 velocity)
+    {
+        Collider body = enemy.GetComponent<Collider>();
+        float speed = Mathf.Abs(velocity.x);
+        if (body == null || obstacleColliders == null || speed < 0.01f)
+        {
+            return 0f;
+        }
+
+        Bounds bodyBounds = body.bounds;
+        foreach (Collider obstacle in obstacleColliders)
+        {
+            if (obstacle == null || !obstacle.bounds.Intersects(bodyBounds))
+            {
+                continue;
+            }
+
+            float distanceLeft = velocity.x > 0f
+                ? obstacle.bounds.max.x - bodyBounds.min.x
+                : bodyBounds.max.x - obstacle.bounds.min.x;
+            // Leave a little slack so the agent is out of the way before the vision snaps back on.
+            return Mathf.Max(0f, distanceLeft / speed - 0.15f);
+        }
+        return 0f;
+    }
+
+    // Is the point inside any yellow vision box, as predicted t seconds from now?
+    bool IsInVision(Vector3 point, float t, float forwardMargin)
+    {
+        float radius = agent != null ? agent.radius : 0.5f;
+        for (int i = 0; i < visionBoxes.Count; i++)
+        {
+            if (t < visionOffUntil[i])
+            {
+                continue;
+            }
+
+            Transform box = visionBoxes[i];
+            Vector3 center = box.position + visionVelocities[i] * t;
+            Vector3 size = box.lossyScale;
+            float halfX = Mathf.Abs(size.x) * 0.5f + radius + forwardMargin;
+            float halfZ = Mathf.Abs(size.z) * 0.5f + radius + visionSideMargin;
+            if (Mathf.Abs(point.x - center.x) <= halfX && Mathf.Abs(point.z - center.z) <= halfZ)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool IsSafeToStay(Vector3 point, float fromTime, float toTime, float forwardMargin)
+    {
+        for (float t = fromTime; t <= toTime; t += 0.1f)
+        {
+            if (IsInVision(point, t, forwardMargin))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Walks the NavMesh path from start to target at the agent's speed and returns roughly how many seconds a
+    // vision box would overlap the agent (0 = never seen). Only the first lookaheadTime seconds are checked.
+    // If waitAtEnd is set, also counts time spent standing at the target until lookaheadTime.
+    float ExposureAlongPath(Vector3 start, Vector3 target, float lookaheadTime, float forwardMargin, bool waitAtEnd)
+    {
+        Vector3[] corners;
+        if (NavMesh.CalculatePath(start, target, NavMesh.AllAreas, scratchPath) && scratchPath.corners.Length > 0)
+        {
+            corners = scratchPath.corners;
+        }
+        else
+        {
+            corners = new Vector3[] { start, target };
+        }
+
+        float speed = Mathf.Max(agent != null ? agent.speed : 6f, 0.1f);
+        const float step = 0.5f;
+        float stepTime = step / speed;
+        float travelled = 0f;
+        float exposure = IsInVision(start, 0f, forwardMargin) ? stepTime : 0f;
+        Vector3 previous = start;
+
+        for (int i = 0; i < corners.Length; i++)
+        {
+            Vector3 segment = corners[i] - previous;
+            float length = segment.magnitude;
+            for (float d = step; d < length + step; d += step)
+            {
+                float along = Mathf.Min(d, length);
+                float t = (travelled + along) / speed;
+                if (t > lookaheadTime)
+                {
+                    return exposure;
+                }
+                if (IsInVision(previous + segment * (along / Mathf.Max(length, 0.0001f)), t, forwardMargin))
+                {
+                    exposure += stepTime;
+                }
+            }
+            travelled += length;
+            previous = corners[i];
+        }
+
+        if (waitAtEnd)
+        {
+            for (float t = travelled / speed; t <= lookaheadTime; t += 0.1f)
+            {
+                if (IsInVision(previous, t, forwardMargin))
+                {
+                    exposure += 0.1f;
+                }
+            }
+        }
+        return exposure;
     }
     
     public void IncrementNumItems()
@@ -165,59 +302,9 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        hidingFromEnemy = true;
-        hidingDestination = GetBestHidingSpot();
         planner.CurrentWorldState.setEnemyNear(true);
         planner.CurrentWorldState.setIsHidden(false);
-        HideFromPatrollingEnemy();
-        gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
-    }
-
-    private void HideFromPatrollingEnemy()
-    {
-        if (hidingDestination == null)
-        {
-            hidingDestination = GetBestHidingSpot();
-        }
-
-        if (hidingDestination == null)
-        {
-            hidingFromEnemy = false;
-            return;
-        }
-
-        agent.destination = hidingDestination.transform.position;
-
-        float distanceToHidingSpot = (transform.position - hidingDestination.transform.position).sqrMagnitude;
-        bool reachedHidingSpot = distanceToHidingSpot < 1.5f * 1.5f;
-
-        if (reachedHidingSpot)
-        {
-            planner.CurrentWorldState.setIsHidden(true);
-            if (hidingReachedTime < 0f)
-            {
-                hidingReachedTime = Time.time;
-            }
-
-            agent.destination = hidingDestination.transform.position;
-            if (Time.time - hidingReachedTime >= 2f)
-            {
-                hidingFromEnemy = false;
-                hidingDestination = null;
-                hidingReachedTime = -1f;
-                planner.CurrentWorldState.setEnemyNear(false);
-                planner.CurrentWorldState.setIsHidden(true);
-
-                if (planner.CurrentWorldState.playerNear)
-                {
-                    ChasePlayer();
-                }
-            }
-        }
-        else
-        {
-            hidingReachedTime = -1f;
-        }
+        GoToBestHidingSpot();
     }
 
     public void Respawn()
@@ -339,16 +426,29 @@ public class EnemyAgentController : MonoBehaviour {
         return closest;
     }
 
+    // Picks the closest hiding spot the agent can reach and wait in without a vision box sweeping over it.
+    // If none is fully safe, picks the one where the agent spends the least time in view.
     public GameObject GetBestHidingSpot()
     {
-        GameObject enemy = FindClosestEnemy();
-        if (enemy == null)
+        if (scratchPath == null)
         {
-            return null;
+            scratchPath = new NavMeshPath();
+        }
+        RefreshVisionBoxes();
+
+        float forwardMargin = visionForwardMargin + (avoidingEnemy ? avoidHysteresis : 0f);
+        float lookahead = hideLookaheadTime * 2f;
+
+        if (hidingDestination != null &&
+            ExposureAlongPath(transform.position, hidingDestination.transform.position, lookahead, forwardMargin, true) == 0f)
+        {
+            return hidingDestination;
         }
 
-        GameObject safestSpot = null;
-        float greatestEnemyDistance = -1f;
+        GameObject bestSpot = null;
+        float bestExposure = Mathf.Infinity;
+        float bestDistance = Mathf.Infinity;
+
         for (int i = 0; i < hidingSpots.Length; i++)
         {
             GameObject spot = hidingSpots[i];
@@ -357,15 +457,32 @@ public class EnemyAgentController : MonoBehaviour {
                 continue;
             }
 
-            float enemyDistance = (spot.transform.position - enemy.transform.position).sqrMagnitude;
-            if (enemyDistance > greatestEnemyDistance)
+            float exposure = ExposureAlongPath(transform.position, spot.transform.position, lookahead, forwardMargin, true);
+            float distance = PathLength(transform.position, spot.transform.position);
+            if (exposure < bestExposure - 0.01f || (exposure < bestExposure + 0.01f && distance < bestDistance))
             {
-                greatestEnemyDistance = enemyDistance;
-                safestSpot = spot;
+                bestExposure = exposure;
+                bestDistance = distance;
+                bestSpot = spot;
             }
         }
 
-        return safestSpot;
+        return bestSpot;
+    }
+
+    float PathLength(Vector3 start, Vector3 target)
+    {
+        if (!NavMesh.CalculatePath(start, target, NavMesh.AllAreas, scratchPath) || scratchPath.corners.Length < 2)
+        {
+            return Vector3.Distance(start, target);
+        }
+
+        float length = 0f;
+        for (int i = 1; i < scratchPath.corners.Length; i++)
+        {
+            length += Vector3.Distance(scratchPath.corners[i - 1], scratchPath.corners[i]);
+        }
+        return length;
     }
 
     public void GoToClosestItem()
@@ -375,7 +492,18 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void GoToBestHidingSpot()
     {
-        agent.destination = GetBestHidingSpot().transform.position;
+        GameObject spot = GetBestHidingSpot();
+        if (spot == null)
+        {
+            return;
+        }
+
+        if (spot != hidingDestination)
+        {
+            hidingDestination = spot;
+            gameMgr.OverlayText("The enemy agent is hiding from the patrol!", 2);
+        }
+        agent.destination = spot.transform.position;
     }
 
     public void ChasePlayer()

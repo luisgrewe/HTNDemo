@@ -81,7 +81,7 @@ public class EnemyAgentPlanner : MonoBehaviour {
                     return true;
                 }
             case TASKS.ChasePlayer:
-                if (ws.playerNear)
+                if (ws.playerAlive)
                 {
                     return true;
                 }
@@ -144,7 +144,7 @@ public class EnemyAgentPlanner : MonoBehaviour {
                     }
                     return false;
                 case 1:
-                    if (ws.playerNear)
+                    if (ws.playerAlive)
                     {
                         return true;
                     }
@@ -187,6 +187,7 @@ public class WorldState
     public bool enemyNear;
     public bool playerNear;
     public bool isHidden = true;
+    public bool playerAlive;
 
     public WorldState(int rt, bool e, bool p, bool h)
     {
@@ -217,5 +218,9 @@ public class WorldState
     public void setIsHidden(bool b)
     {
         isHidden = b;
+    }
+    public void setPlayerAlive(bool b)
+    {
+        playerAlive = b;
     }
 }
