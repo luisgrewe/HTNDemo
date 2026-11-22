@@ -21,7 +21,6 @@ public class EnemyAgentController : MonoBehaviour {
     private bool hidingFromEnemy;
     private GameObject hidingDestination;
     private float hidingReachedTime = -1f;
-    private float hidingCooldownUntil = -1f;
     
 	// Use this for initialization
 	void Start () {
@@ -47,11 +46,7 @@ public class EnemyAgentController : MonoBehaviour {
 
         UpdateWorldState();
 
-        if (Time.time < hidingCooldownUntil)
-        {
-            planner.CurrentWorldState.setEnemyNear(false);
-        }
-        else if (planner.CurrentWorldState.enemyNear)
+        if (planner.CurrentWorldState.enemyNear)
         {
             if (!hidingFromEnemy)
             {
@@ -200,7 +195,6 @@ public class EnemyAgentController : MonoBehaviour {
                 hidingFromEnemy = false;
                 hidingDestination = null;
                 hidingReachedTime = -1f;
-                hidingCooldownUntil = Time.time + 4f;
                 planner.CurrentWorldState.setEnemyNear(false);
                 planner.CurrentWorldState.setIsHidden(true);
             }
