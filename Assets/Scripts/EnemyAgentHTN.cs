@@ -21,11 +21,11 @@
 
         // Construct the methods in the RootTask (BeEnemyAgent)
         Method rootm0 = new Method(TASKS.RootTask, 0);
-        rootm0.subTasks.Add(taskAvoid);
+        rootm0.subTasks.Add(taskChasePlayer);
         Method rootm1 = new Method(TASKS.RootTask, 1);
-        rootm1.subTasks.Add(taskChasePlayer);
+        rootm1.subTasks.Add(taskUseTeleport);
         Method rootm2 = new Method(TASKS.RootTask, 2);
-        rootm2.subTasks.Add(taskUseTeleport);
+        rootm2.subTasks.Add(taskAvoid);
         Method rootm3 = new Method(TASKS.RootTask, 3);
         rootm3.subTasks.Add(taskIdle);
 
