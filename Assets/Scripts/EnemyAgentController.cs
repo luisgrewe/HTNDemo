@@ -10,6 +10,7 @@ public class EnemyAgentController : MonoBehaviour {
     public bool isAlive = true;
     public int numTeleportTraps = 2;
     public float teleDistance = 20;
+    public float enemyAvoidDistance = 12;
     public bool isHiding = true;
 
     public GameObject[] itemsRemaining;
@@ -75,6 +76,7 @@ public class EnemyAgentController : MonoBehaviour {
     {
         planner.CurrentWorldState.setNumTeleports(numTeleportTraps);
         float teleDistanceSquared = teleDistance * teleDistance;
+        float enemyAvoidDistanceSquared = enemyAvoidDistance * enemyAvoidDistance;
 
         float playerDist = -1;  // Default -1 in case Player is removed from game.
 
@@ -95,11 +97,11 @@ public class EnemyAgentController : MonoBehaviour {
         {
             planner.CurrentWorldState.setPlayerNear(false);
         }
-        if (enemyDist < teleDistanceSquared)
+        if (enemyDist < enemyAvoidDistanceSquared)
         {
             planner.CurrentWorldState.setEnemyNear(true);
         }
-        else if (enemyDist >= teleDistanceSquared)
+        else if (enemyDist >= enemyAvoidDistanceSquared)
         {
             planner.CurrentWorldState.setEnemyNear(false);
         }
@@ -131,8 +133,9 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        RespawnFarFromPlayer();
-        gameMgr.OverlayText("The enemy agent was spotted and respawned!", 3);
+        GoToBestHidingSpot();
+        planner.CurrentWorldState.setIsHidden(false);
+        gameMgr.OverlayText("The enemy agent hid in an alcove!", 3);
     }
 
     public void Respawn()

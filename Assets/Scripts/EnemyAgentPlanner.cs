@@ -138,19 +138,19 @@ public class EnemyAgentPlanner : MonoBehaviour {
             switch (m.methodNum)
             {
                 case 0: 
-                    if (ws.playerNear)
+                    if (ws.enemyNear)
                     {
                         return true;
                     }
                     return false;
                 case 1:
-                    if ((ws.numTeleports > 0) && (ws.playerNear || ws.enemyNear))
+                    if (ws.playerNear)
                     {
                         return true;
                     }
                     return false;
                 case 2:
-                    if (ws.enemyNear)
+                    if ((ws.numTeleports > 0) && (ws.playerNear || ws.enemyNear))
                     {
                         return true;
                     }
