@@ -68,11 +68,7 @@ public class EnemyAgentPlanner : MonoBehaviour {
                 }
                 return false;
             case TASKS.Idle:
-                if(ws.enemyNear && ws.isHidden)
-                {
-                    return true;
-                }
-                return false;
+                return true;
             case TASKS.Hide:
                 if (ws.enemyNear && !ws.isHidden)
                 {

@@ -23,10 +23,5 @@ public class PickUpController : MonoBehaviour {
             other.gameObject.GetComponent<PlayerController2>().IncrementNumItems();
             Destroy(this.gameObject);
         }
-        else if (other.gameObject.CompareTag("EnemyAgent"))
-        {
-            other.gameObject.GetComponent<EnemyAgentController>().IncrementNumItems();
-            Destroy(this.gameObject);
-        }
     }
 }

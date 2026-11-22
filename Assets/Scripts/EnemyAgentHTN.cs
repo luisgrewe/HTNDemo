@@ -27,7 +27,7 @@
         Method rootm2 = new Method(TASKS.RootTask, 2);
         rootm2.subTasks.Add(taskAvoid);
         Method rootm3 = new Method(TASKS.RootTask, 3);
-        rootm3.subTasks.Add(taskGetItem);
+        rootm3.subTasks.Add(taskIdle);
 
         // Add the methods to the methods in the Compound Task "BeEnemyAgent"
         taskRoot.methods.Add(rootm0);

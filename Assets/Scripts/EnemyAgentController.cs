@@ -63,6 +63,11 @@ public class EnemyAgentController : MonoBehaviour {
 
         matchEnded = true;
         agent.isStopped = true;
+        PlayerController2 player = other.GetComponent<PlayerController2>();
+        if (player != null)
+        {
+            player.isAlive = false;
+        }
         gameMgr.GameOver("The Enemy Agent caught the Player.");
     }
 

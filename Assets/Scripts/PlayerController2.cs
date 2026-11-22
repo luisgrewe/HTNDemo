@@ -20,6 +20,11 @@ public class PlayerController2 : MonoBehaviour {
    
    void Update()
     {
+        if (!isAlive)
+        {
+            return;
+        }
+
         Move();
 
         if (Input.GetKeyDown(KeyCode.Space) && numTeleportTraps > 0){
