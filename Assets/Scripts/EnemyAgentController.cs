@@ -18,6 +18,8 @@ public class EnemyAgentController : MonoBehaviour {
     public NavMeshAgent agent;
     public EnemyAgentPlanner planner;
     private bool matchEnded;
+    private bool hidingFromEnemy;
+    private GameObject hidingDestination;
     
 	// Use this for initialization
 	void Start () {
@@ -42,6 +44,11 @@ public class EnemyAgentController : MonoBehaviour {
         }
 
         UpdateWorldState();
+        if (hidingFromEnemy)
+        {
+            HideFromPatrollingEnemy();
+            return;
+        }
         planner.MakePlan();
     }
 
@@ -133,9 +140,49 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        GoToBestHidingSpot();
+        hidingFromEnemy = true;
+        hidingDestination = GetBestHidingSpot();
+        planner.CurrentWorldState.setEnemyNear(true);
         planner.CurrentWorldState.setIsHidden(false);
-        gameMgr.OverlayText("The enemy agent hid in an alcove!", 3);
+        HideFromPatrollingEnemy();
+        gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
+    }
+
+    private void HideFromPatrollingEnemy()
+    {
+        if (hidingDestination == null)
+        {
+            hidingDestination = GetBestHidingSpot();
+        }
+
+        if (hidingDestination == null)
+        {
+            hidingFromEnemy = false;
+            return;
+        }
+
+        agent.destination = hidingDestination.transform.position;
+
+        float distanceToHidingSpot = (transform.position - hidingDestination.transform.position).sqrMagnitude;
+        GameObject enemy = FindClosestEnemy();
+        float enemyDistance = enemy == null
+            ? Mathf.Infinity
+            : (transform.position - enemy.transform.position).sqrMagnitude;
+
+        bool reachedHidingSpot = distanceToHidingSpot < 1.5f * 1.5f;
+        bool enemyIsOutOfRange = enemyDistance >= enemyAvoidDistance * enemyAvoidDistance;
+
+        if (reachedHidingSpot)
+        {
+            planner.CurrentWorldState.setIsHidden(true);
+        }
+
+        if (reachedHidingSpot && enemyIsOutOfRange)
+        {
+            hidingFromEnemy = false;
+            hidingDestination = null;
+            planner.CurrentWorldState.setEnemyNear(false);
+        }
     }
 
     public void Respawn()
