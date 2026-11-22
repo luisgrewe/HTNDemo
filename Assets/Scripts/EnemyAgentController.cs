@@ -131,8 +131,9 @@ public class EnemyAgentController : MonoBehaviour {
 
     public void Caught()
     {
-        Respawn();
-        gameMgr.OverlayText("The enemy agent was caught and respawned!", 3);
+        GoToBestHidingSpot();
+        planner.CurrentWorldState.setIsHidden(false);
+        gameMgr.OverlayText("The enemy agent hid from a patrolling enemy!", 3);
     }
 
     public void Respawn()
@@ -224,45 +225,31 @@ public class EnemyAgentController : MonoBehaviour {
 
     public GameObject GetBestHidingSpot()
     {
-        GameObject closest = null;
-        GameObject second = null;
-        float distance = Mathf.Infinity;
-        Vector3 position = transform.position;
+        GameObject enemy = FindClosestEnemy();
+        if (enemy == null)
+        {
+            return null;
+        }
+
+        GameObject safestSpot = null;
+        float greatestEnemyDistance = -1f;
         for (int i = 0; i < hidingSpots.Length; i++)
         {
-            Vector3 diff = hidingSpots[i].transform.position - position;
-            float curDistance = diff.sqrMagnitude;
-            if (curDistance < distance)
+            GameObject spot = hidingSpots[i];
+            if (spot == null)
             {
-                second = closest;
-                closest = hidingSpots[i];
-                distance = curDistance;
-                if (i == 1)
-                {
-                    second = closest;
-                }
+                continue;
+            }
+
+            float enemyDistance = (spot.transform.position - enemy.transform.position).sqrMagnitude;
+            if (enemyDistance > greatestEnemyDistance)
+            {
+                greatestEnemyDistance = enemyDistance;
+                safestSpot = spot;
             }
         }
 
-        GameObject enemy = FindClosestEnemy();
-        GameObject vision = enemy.GetComponent<EnemyController>().vision;
-        Bounds bds = vision.GetComponent<Renderer>().bounds;
-
-        Vector3 closestPt = bds.ClosestPoint(closest.transform.position);
-
-        Vector3 diffEnemy = closest.transform.position - closestPt;
-        Vector3 diffAgent = closest.transform.position - position;
-
-        // If the agent is closer to the closest alcove than the enemy, this is the best alcove
-        // Or, if the closest spot is the edge spot, this is the best spot
-        if ((closest == gameMgr.spawner.leftSpot || closest == gameMgr.spawner.rightSpot) || diffAgent.sqrMagnitude < diffEnemy.sqrMagnitude)
-        {
-            return closest;
-        }
-        else // otherwise, the best alcove is the second closest alcove to the agent
-        {
-            return second;
-        }
+        return safestSpot;
     }
 
     public void GoToClosestItem()
