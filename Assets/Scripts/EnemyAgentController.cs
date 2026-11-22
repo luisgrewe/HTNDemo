@@ -10,7 +10,7 @@ public class EnemyAgentController : MonoBehaviour {
     public bool isAlive = true;
     public int numTeleportTraps = 2;
     public float teleDistance = 20;
-    public float enemyAvoidDistance = 12;
+    public float enemyAvoidDistance = 25;
     public bool isHiding = true;
 
     public GameObject[] itemsRemaining;
@@ -44,6 +44,18 @@ public class EnemyAgentController : MonoBehaviour {
         }
 
         UpdateWorldState();
+
+        if (planner.CurrentWorldState.enemyNear)
+        {
+            if (!hidingFromEnemy)
+            {
+                hidingFromEnemy = true;
+                hidingDestination = GetBestHidingSpot();
+                planner.CurrentWorldState.setIsHidden(false);
+                gameMgr.OverlayText("The enemy agent is hiding in an alcove!", 3);
+            }
+        }
+
         if (hidingFromEnemy)
         {
             HideFromPatrollingEnemy();

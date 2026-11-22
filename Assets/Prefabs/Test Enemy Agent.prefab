@@ -141,7 +141,7 @@ MonoBehaviour:
   isAlive: 1
   numTeleportTraps: 0
   teleDistance: 20
-  enemyAvoidDistance: 12
+  enemyAvoidDistance: 25
   isHiding: 1
   itemsRemaining: []
   hidingSpots: []
